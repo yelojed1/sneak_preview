@@ -1,0 +1,460 @@
+<?php
+
+use Drupal\Core\Url;
+use Drupal\Core\Link;
+
+/**
+ * Implements hook_help().
+ */
+function sneak_preview_help($path, $arg) {
+  switch ($path) {
+    case 'admin/config/content/sneak_preview' :
+      return '<p>' . t('Set the content types you want to use Sneak Preview on<br />Remember to <a href="!roles_link">set permissions too</a>. You usually allow the anonymous user to see sneak previews, but there might be cases where you want to limit it to specific roles.', array('!roles_link' => \Drupal\Core\Url::fromRoute('user.admin_permissions'))) . '</p>';
+    break;
+
+    case 'admin/help#sneak_preview' :
+      // @FIXME
+// url() expects a route name or an external URI.
+// return t("<p>This module allows you to show people content before publishing it.</p>
+// <h2>A Sneak Preview link</h2>
+// <p>Send a Sneak Preview link to a person, and he or she can click on it and be brought directly to the unpublished node. It only allows the person to see this single node, and the permission can easily be revoked or changed for that node.</p>
+// <p>An option in the node edit form offers the author or editor to provide a Sneak Preview link, and when this option is checked, the module generates a semi-random link code that can be sent to selected persons, who can then see this node even though it's not published.</p>
+// <h2>Configuration</h2>
+// You need to tell the system two things:</p>
+// <ul><li>which content types can be sneak previewed</li>
+// <li>who can see sneak previews</li>
+// </ul><h3>Content types</h3>
+// <p>Go to <a href=\"!config_link\">the configuration for Sneak Preview</a> and check the content types you want to allow preview for. You have to have permission to Configure Sneak Preview to do this.</p>
+// <h3>Roles</h3>
+// <p>Go to <a href=\"!roles_link\">permissions for Sneak Preview</a> and select which roles are allowed to see sneak previews. This will normally be anonymous users, meaning that log in will not be necessary to see sneak previews, but it can of course be any role or roles you want.</p>
+// <h3>Permissions</h3>
+// <p>Sneak Preview adds two permission items:</p>
+// <ul><li>Configure Sneak Preview - allow users to edit the configuration of node types that will have a Sneak Preview option</li>
+// <li>Allow Sneak Preview - allow users to see unpublished nodes. This is usually granted to the anonymous user, which allows any user to see a node linked by a Sneak Preview link. You can also limit this permission to different registered users, but then the user will have to be logged in to see an unpublished node</li>
+// </ul><p>Sneak Preview also relies on the administer nodes permission, and only allows users with this permission to see the Sneak Preview tab that is added to the node (in line with View, Edit etc.). You need this permission to add a Sneak Preview link, but then again it's of course needed to edit the node at all, so when you can edit, you can also add a Sneak Preview.</p>
+// <h2>Adding a sneak preview link to a node</h2>
+// <p>Once the node types and permissions are set, you can add a Sneak Preview link by going to the Sneak Preview tab in the bottom of the node form for the relevant node types. Here you can activate the Sneak Preview link, and once the node is saved, it will be generated and provided in a tab above the node together with View and Edit.<br />
+// You can delete the preview code by unchecking the checkbox Provide sneak preview. When you save the node, the code is deleted. You can also force the system to generate a new code, leaving old Sneak Preview links useless.</p>
+// <h2>Using the Sneak Preview link</h2>
+// <p>When the node is viewed by a user logged in with the administer nodes permission, a tab called Sneak Preview will be seen when viewing nodes with a Sneak Preview code. Click on this tab, and you will see some details about the Sneak Preview as well as a link, which can be copied and sent per mail, or distributed as you please.<br />
+// Users with this link can now see the node provided they are allowed in permissions.</p>
+// <h2>The code</h2>
+// <p>The sneak preview code is based on the node number and the current time, run through MD5, and is virtually random and pretty difficult to guess (let's just say impossible). The code is used in a URL with the format<br />
+// /node/<em>nid</em>/preview/<em>code</em><br />
+// where <em>nid</em> is the node number and <em>code</em> is the MD5-string, like here.<br /><strong>http://somesite.tld/node/263/preview/1d5bffda47e9b0b2abf6a71c6137349a</strong><br />
+// Upon generation the code and nid are stored internally in a small table, and on viewing a Sneak Preview link the nid and code from the URL are matched against these data.</p>
+// <p>If the node has been published, the user is redirected to the publicly accessible node.</p>
+// <p>If the code has been changed or revoked or is simply wrong, the user gets a permission denied message.</p>
+// <p>If everything is dandy, the node is shown.</p>
+// <h2>The preview</h2>
+// <p>The preview should look very much like the published node, but since we are circumventing permissions here, there is of course a risk that the Sneak Preview user doesn't see everything or see it exactly as it will eventually appear.<br />
+// The node will also be styled as an unpublished node (light pink background in many themes), and furthermore links, thickboxed images, blocks and similar thing may not work. But the user sees something, which essentially is very close to the finished node.<br />
+// The title Sneak Preview and a Drupal message is added to the page to tell the user of this.<br />
+// The preview is a single and unique \"permission breach\", and in no way permanent. It leaves no traces with the user or other traces in Drupal than statistics and similar information. It doesn't assign the user any special role or change the node.</p>",
+// array(
+//   '!roles_link' => \Drupal\Core\Url::fromRoute('user.admin_permissions'),
+//   '!config_link' => url('admin/config/content/sneak_preview'),
+//   )
+// );
+
+  }
+}
+
+
+/**
+ * Implements hook_perm().
+ */
+function sneak_preview_permission() {
+  return array(
+    'allow sneak preview' => array(
+      'title' => t('Allow sneak preview'),
+      'description' => t('Allow user to see unpublished nodes with sneak preview URL.'),
+    ),
+    
+    'configure sneak preview' => array(
+      'title' => t('Configure sneak preview'),
+      'description' => t('Adminster node type settings for sneak preview.'),
+    ),
+  );
+}
+
+
+/**
+ * Control visibility and access to sneak preview tab
+ */
+function sneak_preview_preview_access(Drupal\Core\Session\AccountInterface $account) {
+  $code = FALSE;
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $node = \Drupal::entityManager()->getStorage('node')->load(arg(1));
+    $code = _sneak_preview_get_code($node->id());
+  }
+  // There has to be a code AND general node admin access to allow tab and page to be shown
+  return $code && \Drupal::currentUser()->hasPermission('administer nodes');
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+function sneak_preview_menu() {
+  $items = array();
+
+  // Show unpublished node based on nid and code
+  $items['node/%/preview/%'] = array(
+    'title' => 'Sneak preview',
+    'page callback' => 'sneak_preview_node',
+    'page arguments' => array(1, 3),
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('allow sneak preview'),
+  );
+
+  $items['admin/config/content/sneak_preview'] = array(
+    'title' => 'Sneak Preview',
+    'description' => 'Set up sneak preview for unpublished nodes.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('sneak_preview_config_form'),
+    'type' => MENU_NORMAL_ITEM,
+    'access arguments' => array('configure sneak preview'),
+  );
+
+  $items['node/%node/sneak_preview_preview'] = array(
+    'title' => 'Sneak preview',
+    'page callback' => 'sneak_preview_preview',
+    'page arguments' => array(1),
+    'access callback' => 'sneak_preview_preview_access',
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+
+/*
+ * Settings form
+ */
+function sneak_preview_config_form() {
+  $settings = \Drupal::config('sneak_preview.settings')->get('sneak_preview_config');
+  if ($settings) {
+    $settings = unserialize($settings);
+  }
+
+  $form = array();
+
+  $types = node_type_get_types();
+  // Generate the options
+  foreach ($types as $k => $v) {
+    $options[$k] = $k->name;
+  }
+
+  // Get saved values or init empty
+  // @FIXME
+// Could not extract the default value because it is either indeterminate, or
+// not scalar. You'll need to provide a default value in
+// config/install/sneak_preview.settings.yml and config/schema/sneak_preview.schema.yml.
+$values = \Drupal::config('sneak_preview.settings')->get('sneak_preview_node_types');
+
+  $form['sneak_preview_node_types'] = array(
+    '#title' => 'Node types with sneak preview',
+    '#type' => 'checkboxes',
+    '#options' => $options,
+    '#default_value' => $values,
+    '#description' => t('Allow sneak preview for the above node types.', array('@type' => $k)),
+  );
+
+  // Buttons
+  $form['buttons']['save'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#weight' => 140,
+    );
+
+  $form['buttons']['cancel'] = array(
+    '#markup' => \Drupal::l(t('Cancel'), \Drupal\Core\Url::fromRoute('system.admin_config')),
+    '#weight' => 150,
+    );
+
+  return $form;
+}
+
+
+/*
+ * Save settings
+ */
+function sneak_preview_config_form_submit($form, &$form_state) {
+  // Save the values
+  \Drupal::configFactory()->getEditable('sneak_preview.settings')->set('sneak_preview_node_types', $form_state['values']['sneak_preview_node_types'])->save();
+  drupal_set_message(t('Your settings have been saved'));
+  drupal_set_message(t('Remember to <a href="!roles_link">select the roles allowed to see Sneak Previews</a>.',
+                     array(
+                      '!roles_link' => \Drupal\Core\Url::fromRoute('user.admin_permissions'),
+                     ))
+                    );
+}
+
+
+/*
+ * Implements form_alter()
+ */
+function sneak_preview_form_alter(&$form, \Drupal\Core\Form\FormStateInterface &$form_state, $form_id) {
+
+  // Not in a node form, no good
+  if (!preg_match('/^node*.*[a-z]_edit_form$/', $form_id)) {
+    return;
+  }
+  if ($form_id == 'node_type_edit_form') {
+    return;
+  }
+  // @FIXME
+  // Could not extract the default value because it is either indeterminate, or
+  // not scalar. You'll need to provide a default value in
+  // config/install/sneak_preview.settings.yml and config/schema/sneak_preview.schema.yml.
+  $node_types = \Drupal::config('sneak_preview.settings')->get('sneak_preview_node_types');
+
+  // Load the current node to get its type
+  if ($form_state->getFormObject()->getEntity()->id()) {
+    // #FR-1062: vid parameter added. Otherwise when you're editing drafts you still see the settings from the last published version.
+    $node = \Drupal::entityManager()->getStorage('node')->loadRevision($form_state->getFormObject()->getEntity()->getRevisionId());
+  }
+  else {
+    // Create an empty node
+    $node = new stdClass();
+    $node->type = str_replace('_node_form', '', $form_id);
+    $node->nid = 0;
+    $node->status = 0;
+  }
+
+  if ($node->id() == 0) //Halt new nodes from having a sneak preview due to this breaking.
+  {
+    $form['sneak_preview'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Sneak preview'),
+      '#group' => 'additional_settings',
+      '#weight' => 95,
+      '#description' => t('You must first save the node in order to create a Sneak Preview link.'),
+    );
+    return;
+  }
+
+  // Work only on the nodes selected in config
+  if (isset($node_types[$node->getType()]) && $node_types[$node->getType()]) {
+    // Add our own submit handler to handle creation and deletion of preview codes
+    $form['actions']['submit']['#submit'][] = 'sneak_preview_node_form_submit';
+
+    // Make a new vertical tab for the sneak preview option
+    $form['sneak_preview'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Sneak preview'),
+      '#group' => 'additional_settings',
+      //      '#attached' => array(
+      //       'js' => array('vertical-tabs' => drupal_get_path('module', 'sneak_preview') . '/sneak_preview.js'),
+      //),
+    '#weight' => 95,
+    );
+
+    // Find the default state
+    $default = _sneak_preview_get_code($node->id()) ? 1 : 0;
+    // Get the link
+    $link = $default ? _sneak_preview_get_link($node->id()) : t('The link will be generated when the node is saved');
+
+    if ($node->isPublished()) {
+      $description = t('The preview link is not needed because the node is published. The link will redirect to the normal node.');
+    }
+    else {
+      $roles = _sneak_preview_get_roles($node->getType());
+      $description = t('<br />The link will allow users with the right roles to see the unpublished node.');
+    }
+
+    $form['sneak_preview']['sneak_preview_provide'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => $default,
+      '#title' => t('Provide sneak preview. Uncheck to revoke. Current link is: ' . $link),
+      '#description' => $description,
+      );
+
+    if (_sneak_preview_get_code($node->id()) && !$node->isPublished()) {
+      $form['sneak_preview']['sneak_preview_new'] = array(
+        '#type' => 'checkbox',
+        '#default_value' => 0,
+        '#title' => t('Generate new code for sneak preview. Old links will become invalid.'),
+        );
+    }
+  }
+}
+
+
+/*
+ * Submit handler to handle creation and deletion of preview codes
+ */
+function sneak_preview_node_form_submit($form, &$form_state) {
+
+  if (!$form_state->getFormObject()->getEntity()->id()) {
+    //If the node hasn't been saved yet, don't allow the user to create a preview code.
+    return false;
+    // Save node to create it and give it a nid
+    //$node = $form_state['node'];
+    //node_save($node);
+    //$nid = $node->nid;
+  }
+  else {
+    $nid = $form_state->getFormObject()->getEntity()->id();
+  }
+
+  // Check for renewal
+  if ($form_state->getValue('sneak_preview_new')) {
+      // Delete old code
+      _sneak_preview_delete_code($nid);
+  }
+
+  // User wants preview
+  if ($form_state->getValue('sneak_preview_provide')) {
+    // Generate a preview code and save it
+    _sneak_preview_generate_code($nid);
+  }
+  else {
+    // Delete preview code
+    _sneak_preview_delete_code($nid);
+  }
+}
+
+/**
+ * node preview base function
+ * @param
+ * $nid = node nid
+ * $code = code from URL
+ * @return node preview if all is OK
+ */
+function sneak_preview_node($nid, $code) {
+  $node = \Drupal::entityManager()->getStorage('node')->load($nid);
+
+  // #FR-1062: get the latest revision, not just the current published one
+  $revision_list = node_revision_list($node);
+  if (!empty($revision_list)) {
+      ksort($revision_list);
+      $latest = end($revision_list);
+
+      // not the latest? reload the node
+      if ($node->vid != $latest->vid) {
+          $node = \Drupal::entityManager()->getStorage('node')->loadRevision($latest->vid);
+      }
+  }
+
+  // Check if node is published, show normal
+  if ($node->status) {
+    drupal_goto('node/' . $node->nid);
+  }
+  
+  // Check code and general permission
+  if ($code != _sneak_preview_get_code($nid) || !\Drupal::currentUser()->hasPermission('allow sneak preview')) {
+    drupal_access_denied();
+    return;
+  }
+  
+  // All OK, show message and unpublished node
+  drupal_set_message(t('Please notice that you are looking at a sneak preview of an unpublished page on this site. You cannot be sure that all images are visible, links are active or that the page occurs exactly as if it was published.'), 'warning');
+  return node_view($node);
+}
+
+
+/**
+ * Get code for node
+ * @param
+ * $nid = node nid
+ * @return code string from database
+ */
+function _sneak_preview_get_code($nid) {
+  if ($nid) {
+    $query = db_select('sneak_preview', 's');
+    $query
+      ->condition('s.nid', $nid, '=')
+      ->fields('s', array('code'));
+    $result = $query->execute();
+    $code = $result->fetchAssoc();
+    return $code['code'];
+  }
+}
+
+/**
+ * Get complete link for node
+ * @param
+ * $nid = node nid
+ * @return link as clickable text
+ */
+function _sneak_preview_get_link($nid) {
+  
+  $link = 'http://' . $_SERVER['HTTP_HOST'] . Url::fromRoute('<front>')->toString() . 'node/' . $nid . '/preview/' . _sneak_preview_get_code($nid);
+
+ return $link;
+
+}
+
+
+/**
+ * Generate code for node if none exists
+ * @param
+ * $nid = node nid
+ * @return nothing, but will replace existing code
+ */
+function _sneak_preview_generate_code($nid) {
+  if (!$nid || _sneak_preview_get_code($nid)) {
+    return;
+  }
+  _sneak_preview_delete_code($nid);
+
+  // Generate code
+  $code = md5(time()*$nid);
+  // v($code);
+  
+  // Save code into database
+  $fields = array('nid' => $nid, 'code' => $code);
+  db_insert('sneak_preview')->fields($fields)->execute();
+
+}
+
+/**
+ * Delete code for node
+ * @param
+ * $nid = node nid
+ * @return nothing
+ */
+function _sneak_preview_delete_code($nid) {
+  db_query("DELETE FROM {sneak_preview} WHERE nid = :nid", array(
+    ':nid' => $nid,
+  ));
+}
+
+
+/**
+ * Show sneak preview info in tab
+ * @param
+ * $node = node object
+ * @return Sneak preview explanation and link
+ */
+function sneak_preview_preview(\Drupal\node\NodeInterface $node) {
+  $code = _sneak_preview_get_code($node->id());
+  $roles = _sneak_preview_get_roles($node->getType());
+  $note = isset($roles[0]) && $roles[0] == 'none' ?
+    t('<br />Notice that no roles have permission to see sneak previews. Edit this in <a href="!url">the permission settings</a>.',
+      array(
+            '!url' => \Drupal\Core\Url::fromRoute('user.admin_permissions'))
+      ) :
+    t('This link<br /><strong>!link</strong><br />will allow users with these roles !roles to see the unpublished node.',
+      array(
+            '!link' => _sneak_preview_get_link($node->id()),
+            '!roles' => theme_item_list(array('items' => $roles, 'title' => '', 'type' => 'ul', 'attributes' => array())))
+      );
+  $ret = $code ? $note : t('No sneak preview code available for this node');
+  return $ret;  
+}
+
+
+/**
+ * Find roles that can preview a node type
+ * @param
+ * $type = node type
+ * @return array of roles - array('none') for no roles
+ */
+function _sneak_preview_get_roles($type) {
+  $roles = user_roles(FALSE, 'allow sneak preview');
+  return count($roles) ? $roles : array('none');
+}
+

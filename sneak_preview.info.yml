@@ -1,0 +1,4 @@
+name: 'Sneak Preview'
+description: 'Allow people to sneak preview unpublished nodes using a "secret" url. MODIFIED BY TWENTYSIX.'
+core: 8.x
+type: module

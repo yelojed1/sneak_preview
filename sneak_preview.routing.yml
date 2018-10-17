@@ -1,0 +1,28 @@
+sneak_preview.node:
+  path: '/node/{nid}/preview/{code}'
+  defaults:
+    _title: 'Sneak preview'
+    _controller: '\Drupal\sneak_preview\Controller\DefaultController::sneak_preview_node'
+  requirements:
+    _permission: 'allow sneak preview'
+sneak_preview.config_form:
+  path: /admin/config/content/sneak_preview
+  defaults:
+    _title: 'Sneak Preview'
+    _form: \Drupal\sneak_preview\Form\SneakPreviewConfigForm
+  requirements:
+    _permission: 'configure sneak preview'
+sneak_preview.preview:
+  path: '/node/{node}/sneak_preview_preview'
+  defaults:
+    _title: 'Sneak preview'
+    _controller: '\Drupal\sneak_preview\Controller\DefaultController::sneak_preview_preview'
+  requirements:
+    _custom_access: '\Drupal\sneak_preview\Controller\DefaultController::sneak_preview_preview_access'
+sneak_preview.api:
+  path: 'api/sneak_preview/{token}'
+  defaults:
+    _title: 'Get nid by Sneak preview token'
+    _controller: '\Drupal\sneak_preview\Controller\DefaultController::sneak_preview_api_getnid'
+  requirements:
+    _access: 'TRUE'

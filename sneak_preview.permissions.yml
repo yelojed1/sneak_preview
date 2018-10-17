@@ -1,0 +1,6 @@
+'allow sneak preview':
+  title: 'Allow sneak preview'
+  description: 'Allow user to see unpublished nodes with sneak preview URL.'
+'configure sneak preview':
+  title: 'Configure sneak preview'
+  description: 'Adminster node type settings for sneak preview.'

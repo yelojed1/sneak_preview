@@ -1,0 +1,6 @@
+sneak_preview.settings:
+  type: mapping
+  label: Settings
+  mapping:
+    sneak_preview_config:
+      type: boolean

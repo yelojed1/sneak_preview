@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Sneak Preview module.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function sneak_preview_enable() {
+  // Remind people to set roles and permissions
+  // @FIXME
+// url() expects a route name or an external URI.
+// drupal_set_message(t('Sneak Preview module is now enabled.<br />Remember to <a href="!node_types_link">select the node types to provide Sneak Previews for</a> and <a href="!roles_link">the roles allowed to see Sneak Previews</a>.',
+//                      array(
+//                       '!node_types_link' => url('admin/config/content/sneak_preview'),
+//                       '!roles_link' => url('admin/people/permissions', array('fragment' => 'module-sneak_preview')),
+//                      ))
+//                     );
+
+}
+
+
+/**
+ * Implements hook_uninstall().
+ */
+function sneak_preview_uninstall() {
+//  \Drupal::config('sneak_preview.settings')->clear('sneak_preview_node_types')->save();
+}
+
+
+/**
+ * Implements hook_schema().
+ */
+function sneak_preview_schema() {
+  $schema['sneak_preview'] = array(
+    'description' => 'Stores sneak preview data.',
+    'fields' => array(
+      'nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique node ID.',
+      ),
+      'code' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The secret code.',
+      ),
+    ),
+
+    'primary key' => array('nid'),
+  );
+
+  return $schema;
+}

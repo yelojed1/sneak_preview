@@ -1,0 +1,5 @@
+sneak_preview.config_form:
+  route_name: sneak_preview.config_form
+  title: 'Sneak Preview'
+  description: 'Set up sneak preview for unpublished nodes.'
+  parent: system.admin_config_content
